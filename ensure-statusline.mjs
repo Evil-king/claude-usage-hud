@@ -20,7 +20,6 @@ import { join } from "node:path";
 
 const HOME = process.env.CLAUDE_CONFIG_DIR && process.env.CLAUDE_CONFIG_DIR.trim() !== "" ? process.env.CLAUDE_CONFIG_DIR : join(homedir(), ".claude");
 const SETTINGS = join(HOME, "settings.json");
-const CONFIG = join(HOME, "usage-hud.json");
 const BRIDGE = join(HOME, "usage-hud", "statusline.mjs");
 
 /** The command every session should run. */
@@ -31,17 +30,9 @@ try {
 	const settings = JSON.parse(readFileSync(SETTINGS, "utf8"));
 	const current = typeof settings?.statusLine?.command === "string" ? settings.statusLine.command : "";
 	if (current === COMMAND) process.exit(0);
-	// Keep whatever command is being replaced so the bridge can chain it.
-	if (current !== "" && !current.includes("usage-hud/statusline.mjs")) {
-		let config = {};
-		try {
-			config = JSON.parse(readFileSync(CONFIG, "utf8"));
-		} catch (_noConfig) {
-			// First run: start the file from scratch.
-		}
-		config.chainCommand = current;
-		writeFileSync(CONFIG, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-	}
+	// No auto-chaining: standalone is the default, and a chained command is an
+	// explicit choice in usage-hud.json. Silently dragging the replaced command
+	// back in would resurrect whatever the user asked to drop.
 	settings.statusLine = { type: "command", command: COMMAND };
 	writeFileSync(SETTINGS, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 } catch (_unwritable) {
