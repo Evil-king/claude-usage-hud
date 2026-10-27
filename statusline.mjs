@@ -30,11 +30,14 @@ const CACHE_PATH = join(HOME, ".usage-hud-cache.json");
 /** ANSI helpers; the statusline disables colors when piped, but Claude Code is a TTY. */
 const useColor = process.env.FORCE_COLOR !== undefined && process.env.FORCE_COLOR !== "0"
 	|| (process.stdout.isTTY !== false && process.env.NO_COLOR === undefined && process.env.FORCE_COLOR !== "0");
-const dim = (text) => (useColor ? `\u001b[2m${text}\u001b[0m` : text);
-const bold = (text) => (useColor ? `\u001b[1m${text}\u001b[0m` : text);
-const green = (text) => (useColor ? `\u001b[32m${text}\u001b[0m` : text);
-const yellow = (text) => (useColor ? `\u001b[33m${text}\u001b[0m` : text);
-const red = (text) => (useColor ? `\u001b[31m${text}\u001b[0m` : text);
+/** Field labels: plain white — readable on dark palettes where dim vanishes. */
+const label = (text) => (useColor ? `\u001b[97m${text}\u001b[0m` : text);
+/** The model name: bold bright white, the row's anchor. */
+const emphasis = (text) => (useColor ? `\u001b[1;97m${text}\u001b[0m` : text);
+/** Pressure colors use the bright variants so they stay legible. */
+const green = (text) => (useColor ? `\u001b[1;92m${text}\u001b[0m` : text);
+const yellow = (text) => (useColor ? `\u001b[1;93m${text}\u001b[0m` : text);
+const red = (text) => (useColor ? `\u001b[1;91m${text}\u001b[0m` : text);
 /**
  * The branch mark: bold bright cyan.
  *
@@ -290,28 +293,28 @@ function usageLine(stdinJson, config, quota) {
 	const stdinCost = Number(stdinJson?.cost?.total_cost_usd) || 0;
 	const cost = stdinCost > 0 ? stdinCost : summary.cost;
 	const parts = [];
-	if (model !== "") parts.push(bold(model));
+	if (model !== "") parts.push(emphasis(model));
 	// Pressing against the window is the one thing worth seeing at a glance.
 	if (summary.lastPromptTokens > 0) {
 		const window_ = contextWindowOf(summary.lastModel === "" ? model : summary.lastModel);
 		const used = Math.min(100, Math.round((summary.lastPromptTokens / window_) * 100));
-		parts.push(`${dim("ctx")} ${share(used)}`);
+		parts.push(`${label("ctx")} ${share(used)}`);
 	}
-	if (summary.tokens > 0) parts.push(`${dim("tok")} ${formatTokens(summary.tokens)}`);
-	if (config.showCost === true && cost > 0) parts.push(`${dim("≈")}${formatMoney(cost)}`);
+	if (summary.tokens > 0) parts.push(`${label("tok")} ${formatTokens(summary.tokens)}`);
+	if (config.showCost === true && cost > 0) parts.push(`${label("≈")}${formatMoney(cost)}`);
 	const limits = quota?.limits;
 	if (Array.isArray(limits)) {
 		const hourly = limits.find((limit) => limit.unit === 3);
 		const weekly = limits.find((limit) => limit.unit === 6);
 		if (hourly !== undefined) {
 			const reset = resetText(hourly);
-			parts.push(`${dim("5h")} ${share(Number(hourly.percentage) || 0)}${reset === "" ? "" : dim(`→${reset}`)}`);
+			parts.push(`${label("5h")} ${share(Number(hourly.percentage) || 0)}${reset === "" ? "" : label(`→${reset}`)}`);
 		}
 		if (weekly !== undefined) {
 			const reset = resetText(weekly);
-			parts.push(`${dim("wk")} ${share(Number(weekly.percentage) || 0)}${reset === "" ? "" : dim(`→${reset}`)}`);
+			parts.push(`${label("wk")} ${share(Number(weekly.percentage) || 0)}${reset === "" ? "" : label(`→${reset}`)}`);
 		}
-		if (typeof quota.level === "string" && quota.level !== "") parts.push(dim(quota.level));
+		if (typeof quota.level === "string" && quota.level !== "") parts.push(label(quota.level));
 	}
 	const branchDir = typeof stdinJson?.workspace?.current_dir === "string" && stdinJson.workspace.current_dir !== ""
 		? stdinJson.workspace.current_dir
