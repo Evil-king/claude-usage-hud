@@ -35,8 +35,13 @@ const bold = (text) => (useColor ? `\u001b[1m${text}\u001b[0m` : text);
 const green = (text) => (useColor ? `\u001b[32m${text}\u001b[0m` : text);
 const yellow = (text) => (useColor ? `\u001b[33m${text}\u001b[0m` : text);
 const red = (text) => (useColor ? `\u001b[31m${text}\u001b[0m` : text);
-/** The branch mark: cyan reads as a label at a glance without shouting. */
-const cyan = (text) => (useColor ? `\u001b[36m${text}\u001b[0m` : text);
+/**
+ * The branch mark: bold bright cyan.
+ *
+ * Plain `36` is theme-dependent — several dark palettes map ANSI cyan to a
+ * muted grey. Bold + bright variant (96) reads as cyan even there.
+ */
+const cyan = (text) => (useColor ? `\u001b[1;96m${text}\u001b[0m` : text);
 
 /** Token counts per 1M for the routes this machine actually serves, USD. */
 const PRICES = {
