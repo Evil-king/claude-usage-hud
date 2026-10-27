@@ -24,7 +24,7 @@ Claude Code 只有一个状态栏槽位。之前用“桥接”把 claude-hud �
 | `≈$22.17` | 按内置费率表逐消息估算；Claude Code 若给出非 0 的 `cost.total_cost_usd` 则优先用官方的 | 订阅套餐下是牌价估算，不是账单 |
 | `5h 26%→20:53` / `wk 35%→11/2` | 智谱 monitor 接口（同官网用量页），百分比为**已用**，箭头是重置时刻 | 60 秒磁盘缓存 |
 | `max` | 套餐等级 | |
-| `git:main` | 读 `.git/HEAD`（不 spawn git 进程） | 非 git 目录则不显示 |
+| `git:main` | 读 `.git/HEAD`（不 spawn git 进程），青色显示 | 非 git 目录则不显示；支持 worktree/submodule 与仓库子目录 |
 
 ## 安装
 

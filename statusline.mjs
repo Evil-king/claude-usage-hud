@@ -28,12 +28,15 @@ const CONFIG_PATH = join(HOME, "usage-hud.json");
 const CACHE_PATH = join(HOME, ".usage-hud-cache.json");
 
 /** ANSI helpers; the statusline disables colors when piped, but Claude Code is a TTY. */
-const useColor = process.stdout.isTTY !== false && process.env.NO_COLOR === undefined;
+const useColor = process.env.FORCE_COLOR !== undefined && process.env.FORCE_COLOR !== "0"
+	|| (process.stdout.isTTY !== false && process.env.NO_COLOR === undefined && process.env.FORCE_COLOR !== "0");
 const dim = (text) => (useColor ? `\u001b[2m${text}\u001b[0m` : text);
 const bold = (text) => (useColor ? `\u001b[1m${text}\u001b[0m` : text);
 const green = (text) => (useColor ? `\u001b[32m${text}\u001b[0m` : text);
 const yellow = (text) => (useColor ? `\u001b[33m${text}\u001b[0m` : text);
 const red = (text) => (useColor ? `\u001b[31m${text}\u001b[0m` : text);
+/** The branch mark: cyan reads as a label at a glance without shouting. */
+const cyan = (text) => (useColor ? `\u001b[36m${text}\u001b[0m` : text);
 
 /** Token counts per 1M for the routes this machine actually serves, USD. */
 const PRICES = {
@@ -234,11 +237,21 @@ async function readQuota(config) {
 function gitBranch(cwd) {
 	if (typeof cwd !== "string" || cwd === "") return "";
 	let dir = cwd;
-	for (let depth = 0; depth < 6; depth += 1) {
+	for (let depth = 0; depth < 12; depth += 1) {
 		const gitPath = join(dir, ".git");
 		if (existsSync(gitPath)) {
 			try {
-				const head = readFileSync(join(gitPath, "HEAD"), "utf8").trim();
+				let headPath = join(gitPath, "HEAD");
+				// A worktree or submodule stores `.git` as a file pointing at the
+				// real git dir; follow it instead of giving up on the branch.
+				if (!statSync(gitPath).isDirectory()) {
+					const pointer = readFileSync(gitPath, "utf8").trim();
+					if (pointer.startsWith("gitdir: ")) {
+						const target = pointer.slice(8).trim();
+						headPath = join(target.startsWith("/") ? target : join(dir, target), "HEAD");
+					}
+				}
+				const head = readFileSync(headPath, "utf8").trim();
 				if (head.startsWith("ref: ")) {
 					const ref = head.slice(5);
 					return ref.startsWith("refs/heads/") ? ref.slice(11) : ref;
@@ -295,8 +308,11 @@ function usageLine(stdinJson, config, quota) {
 		}
 		if (typeof quota.level === "string" && quota.level !== "") parts.push(dim(quota.level));
 	}
-	const branch = gitBranch(typeof stdinJson?.workspace?.current_dir === "string" ? stdinJson.workspace.current_dir : typeof stdinJson?.cwd === "string" ? stdinJson.cwd : "");
-	if (branch !== "") parts.push(dim(`git:${branch}`));
+	const branchDir = typeof stdinJson?.workspace?.current_dir === "string" && stdinJson.workspace.current_dir !== ""
+		? stdinJson.workspace.current_dir
+		: typeof stdinJson?.cwd === "string" && stdinJson.cwd !== "" ? stdinJson.cwd : process.cwd();
+	const branch = gitBranch(branchDir);
+	if (branch !== "") parts.push(cyan(`git:${branch}`));
 	return parts.join("  ");
 }
 
