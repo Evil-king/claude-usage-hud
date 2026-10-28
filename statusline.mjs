@@ -289,18 +289,14 @@ function usageLine(stdinJson, config, quota) {
 	// served, so the row keeps saying what is being measured. The `[1m]` suffix
 	// stays: it is what tells a 1M-context route from a 200k one, and two routes
 	// of the same family are otherwise indistinguishable in the row.
-	const rawModel = (stdinModel === "" ? summary.lastModel : stdinModel).trim();
-	const suffixMatch = rawModel.match(/\[[^\]]*\]$/);
-	const model = (suffixMatch === null ? rawModel : rawModel.slice(0, suffixMatch.index)).trim();
-	const windowSuffix = suffixMatch === null ? "" : suffixMatch[0];
+	const model = (stdinModel === "" ? summary.lastModel : stdinModel).trim();
 	// Claude Code's own cost covers Anthropic routes; a routed model it cannot
 	// price reports 0, so the transcript estimate stands in only then.
 	const stdinCost = Number(stdinJson?.cost?.total_cost_usd) || 0;
 	const cost = stdinCost > 0 ? stdinCost : summary.cost;
 	const parts = [];
-	// The suffix is a label, not part of the name: plain white keeps the bold
-	// name the anchor and leaves the palette free of dim tones.
-	if (model !== "") parts.push(`${emphasis(model)}${windowSuffix === "" ? "" : label(windowSuffix)}`);
+	// Name and suffix are one token in the row, so they share one color.
+	if (model !== "") parts.push(emphasis(model));
 	// Pressing against the window is the one thing worth seeing at a glance.
 	if (summary.lastPromptTokens > 0) {
 		const window_ = contextWindowOf(summary.lastModel === "" ? model : summary.lastModel);
