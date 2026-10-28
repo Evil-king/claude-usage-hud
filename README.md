@@ -3,7 +3,7 @@
 **独立**的 Claude Code 终端状态栏：一行看清 当前模型 · 上下文占用 · 本会话 token · 预估费用 · 智谱 GLM 套餐 5 小时/周额度 · git 分支。零依赖、零插件冲突。
 
 ```
-glm-5.3-flash  ctx 40%  tok 82.5M  ≈$22.17  5h 26%→20:53  wk 35%→11/2  max  git:main
+glm-5.3-flash[1m]  ctx 40%  tok 82.5M  ≈$22.17  5h 26%→20:53  wk 35%→11/2  max  git:main
 ```
 
 ## 为什么不再依赖 claude-hud
@@ -18,7 +18,7 @@ Claude Code 只有一个状态栏槽位。之前用“桥接”把 claude-hud �
 
 | 段 | 来源 | 说明 |
 | --- | --- | --- |
-| 模型 | 状态栏 stdin 的 `model.display_name`（去掉 `[1M]` 后缀）；缺失时取最近一条消息的模型 | |
+| 模型 | 状态栏 stdin 的 `model.display_name`（`[1m]` 这类上下文后缀**保留**，用普通亮白跟在加粗模型名后面）；缺失时取最近一条消息的模型 | |
 | `ctx 40%` | 最近一次请求的 prompt 大小（input + cache read + cache write）÷ 上下文窗口 | 窗口按模型推断：glm/deepseek 系 1M，claude 系 200k |
 | `tok 82.5M` | 本会话 transcript 按**消息 id 去重**累加（输入/输出/缓存读/缓存写） | 与计费口径一致 |
 | `≈$22.17` | 按内置费率表逐消息估算；Claude Code 若给出非 0 的 `cost.total_cost_usd` 则优先用官方的 | 订阅套餐下是牌价估算，不是账单 |
@@ -26,7 +26,7 @@ Claude Code 只有一个状态栏槽位。之前用“桥接”把 claude-hud �
 | `max` | 套餐等级 | |
 | `git:main` | 读 `.git/HEAD`（不 spawn git 进程），加粗亮青显示 | 非 git 目录则不显示；支持 worktree/submodule 与仓库子目录 |
 
-配色：模型 = 加粗亮白；标签（ctx/tok/5h/wk/max/重置时刻）= 亮白；百分比 = 亮绿 <70% / 亮黄 <90% / 亮红 ≥90%；分支 = 加粗亮青。整体不用暗色 `dim`，暗色主题下也清晰。
+配色：模型 = 加粗亮白；上下文后缀（`[1m]`）= 普通亮白；标签（ctx/tok/5h/wk/max/重置时刻）= 亮白；百分比 = 亮绿 <70% / 亮黄 <90% / 亮红 ≥90%；分支 = 加粗亮青。整体不用暗色 `dim`，暗色主题下也清晰。
 
 ## 安装
 
@@ -81,7 +81,23 @@ cp config.example.json ~/.claude/usage-hud.json    # 填 glmAuthorization
 | `statusline.mjs` | 状态栏本体 |
 | `ensure-statusline.mjs` | SessionStart 自愈钩子（校正 statusLine） |
 | `config.example.json` | 配置模板 |
-| `~/.claude/usage-hud.log` | 每次调用的诊断记录（模型 / 额度 / 输出），排查用 |
+| `~/.claude/usage-hud.log` | 每次调用的诊断记录（会话 id / transcript / 模型 / 额度 / 输出），排查用 |
+
+## 排查
+
+模型名**完全来自 Claude Code 递进来的 stdin**：脚本不缓存，每次渲染都是新进程，所以改了脚本下一次渲染就生效。模型名没跟着 `/model` 变时，先看诊断日志：
+
+```bash
+tail -f ~/.claude/usage-hud.log | grep -o '"model":{[^}]*}'
+```
+
+| 日志里 | 结论 |
+| --- | --- |
+| 下一次渲染就变成新模型 | 正常，之前只是切到了别的窗口 / 面板 |
+| 一直是旧模型 | `/model` 没落在该会话（比对 `sessionId`），或者 `settings.json` 的 `env` 只在进程启动时读取——改完要重开会话 |
+| 来回跳 | 多个会话在写同一份日志，按 `sessionId` 分辨即可 |
+
+`ANTHROPIC_MODEL` 这类 `env` 是**启动时的快照**：改 `settings.json` 对已在跑的会话无效，必须在会话里 `/model` 重选，或退出后 `claude --continue` 重开。
 
 ## 安全
 

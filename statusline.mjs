@@ -286,14 +286,21 @@ function usageLine(stdinJson, config, quota) {
 		: latestTranscript();
 	const summary = transcriptPath === undefined ? { tokens: 0, cost: 0, models: [], lastModel: "", lastPromptTokens: 0 } : sumTranscript(transcriptPath);
 	// A payload without a model (a switch transient) names the one that last
-	// served, so the row keeps saying what is being measured.
-	const model = (stdinModel === "" ? summary.lastModel : stdinModel).replace(/\[[^\]]*\]$/, "").trim();
+	// served, so the row keeps saying what is being measured. The `[1m]` suffix
+	// stays: it is what tells a 1M-context route from a 200k one, and two routes
+	// of the same family are otherwise indistinguishable in the row.
+	const rawModel = (stdinModel === "" ? summary.lastModel : stdinModel).trim();
+	const suffixMatch = rawModel.match(/\[[^\]]*\]$/);
+	const model = (suffixMatch === null ? rawModel : rawModel.slice(0, suffixMatch.index)).trim();
+	const windowSuffix = suffixMatch === null ? "" : suffixMatch[0];
 	// Claude Code's own cost covers Anthropic routes; a routed model it cannot
 	// price reports 0, so the transcript estimate stands in only then.
 	const stdinCost = Number(stdinJson?.cost?.total_cost_usd) || 0;
 	const cost = stdinCost > 0 ? stdinCost : summary.cost;
 	const parts = [];
-	if (model !== "") parts.push(emphasis(model));
+	// The suffix is a label, not part of the name: plain white keeps the bold
+	// name the anchor and leaves the palette free of dim tones.
+	if (model !== "") parts.push(`${emphasis(model)}${windowSuffix === "" ? "" : label(windowSuffix)}`);
 	// Pressing against the window is the one thing worth seeing at a glance.
 	if (summary.lastPromptTokens > 0) {
 		const window_ = contextWindowOf(summary.lastModel === "" ? model : summary.lastModel);
@@ -424,6 +431,10 @@ logDebug({
 	stdinBytes: stdinText.length,
 	parsed: stdinJson !== undefined,
 	model: stdinJson?.model ?? null,
+	// Which pane this render belongs to. Two Claude windows write to one log, and
+	// without a session key their renders read as one session whose model flips.
+	sessionId: typeof stdinJson?.session_id === "string" ? stdinJson.session_id : null,
+	transcript: typeof stdinJson?.transcript_path === "string" ? stdinJson.transcript_path : null,
 	hasTranscript: typeof stdinJson?.transcript_path === "string" && stdinJson.transcript_path !== "",
 	costUsd: stdinJson?.cost?.total_cost_usd ?? null,
 	quota: quota === null ? null : { level: quota.level, limits: quota.limits?.length ?? 0 },
