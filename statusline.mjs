@@ -207,29 +207,45 @@ async function readQuota(config) {
 	if (config.glmAuthorization === "") return null;
 	const cache = readJson(CACHE_PATH) ?? {};
 	const now = Date.now();
+	if (Number.isFinite(cache.retryAt) && now < cache.retryAt) {
+		// A failed attempt just happened: serve what we have instead of
+		// hammering an upstream that is timing out or throttling us.
+		return cache.quota ?? null;
+	}
 	if (cache.quota !== undefined && Number.isFinite(cache.quotaAt) && now - cache.quotaAt < config.quotaTtlSeconds * 1000) {
 		return cache.quota;
 	}
 	let quota = null;
+	let failure = "";
 	try {
-		const response = await fetch("https://bigmodel.cn/api/monitor/usage/quota/limit", {
+		const response = await fetch(process.env.USAGE_HUD_QUOTA_URL ?? "https://bigmodel.cn/api/monitor/usage/quota/limit", {
 			headers: { authorization: config.glmAuthorization },
-			signal: AbortSignal.timeout(4000)
+			signal: AbortSignal.timeout(8000)
 		});
 		if (response.ok) {
 			const body = await response.json();
 			const limits = Array.isArray(body?.data?.limits) ? body.data.limits : Array.isArray(body?.limits) ? body.limits : undefined;
 			if (limits !== undefined) quota = { limits, level: typeof body?.data?.level === "string" ? body.data.level : null };
+			else failure = "unparsable";
+		} else {
+			failure = `http ${response.status}`;
 		}
-	} catch (_unreachable) {
-		// A dead network keeps the line short, not broken.
+	} catch (error) {
+		failure = error?.name === "TimeoutError" ? "timeout" : "network";
 	}
 	if (quota !== null) {
 		cache.quota = quota;
 		cache.quotaAt = now;
 		writeJson(CACHE_PATH, cache);
+		return quota;
 	}
-	return quota;
+	// Stale-while-error: one flaky request must not blank a segment the user is
+	// watching. The last good answer stands in; the next successful refresh
+	// replaces it, and the log records why this attempt missed.
+	cache.quotaError = failure;
+	cache.retryAt = now + 15000;
+	writeJson(CACHE_PATH, cache);
+	return cache.quota ?? null;
 }
 
 /**
