@@ -236,6 +236,9 @@ async function readQuota(config) {
 	if (quota !== null) {
 		cache.quota = quota;
 		cache.quotaAt = now;
+		// A successful refresh clears the stale failure marks with it.
+		delete cache.quotaError;
+		delete cache.retryAt;
 		writeJson(CACHE_PATH, cache);
 		return quota;
 	}
