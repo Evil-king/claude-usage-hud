@@ -224,11 +224,19 @@ async function readQuota(config) {
 		});
 		if (response.ok) {
 			const body = await response.json();
-			const limits = Array.isArray(body?.data?.limits) ? body.data.limits : Array.isArray(body?.limits) ? body.limits : undefined;
-			if (limits !== undefined) quota = { limits, level: typeof body?.data?.level === "string" ? body.data.level : null };
-			else failure = "unparsable";
+			// The monitor endpoint reports auth errors as HTTP 200 with a
+			// `{code: 401, success: false}` envelope; reading only .ok would
+			// misclassify an expired token as an unparsable answer.
+			const code = Number(body?.code);
+			if (body?.success === false || (Number.isFinite(code) && code !== 200 && code !== 0)) {
+				failure = code === 401 || code === 403 ? "auth" : `api ${body?.code}`;
+			} else {
+				const limits = Array.isArray(body?.data?.limits) ? body.data.limits : Array.isArray(body?.limits) ? body.limits : undefined;
+				if (limits !== undefined) quota = { limits, level: typeof body?.data?.level === "string" ? body.data.level : null };
+				else failure = "unparsable";
+			}
 		} else {
-			failure = `http ${response.status}`;
+			failure = response.status === 401 || response.status === 403 ? "auth" : `http ${response.status}`;
 		}
 	} catch (error) {
 		failure = error?.name === "TimeoutError" ? "timeout" : "network";
@@ -248,7 +256,9 @@ async function readQuota(config) {
 	cache.quotaError = failure;
 	cache.retryAt = now + 15000;
 	writeJson(CACHE_PATH, cache);
-	return cache.quota ?? null;
+	// A stale answer is still served, but marked: a frozen number that looks
+	// live is worse than no number.
+	return cache.quota === undefined ? null : { ...cache.quota, stale: true };
 }
 
 /**
@@ -328,13 +338,14 @@ function usageLine(stdinJson, config, quota) {
 	if (Array.isArray(limits)) {
 		const hourly = limits.find((limit) => limit.unit === 3);
 		const weekly = limits.find((limit) => limit.unit === 6);
+		const stale = quota.stale === true ? "?" : "";
 		if (hourly !== undefined) {
 			const reset = resetText(hourly);
-			parts.push(`${label("5h")} ${share(Number(hourly.percentage) || 0)}${reset === "" ? "" : label(`→${reset}`)}`);
+			parts.push(`${label("5h")} ${share(Number(hourly.percentage) || 0)}${stale}${reset === "" ? "" : label(`→${reset}`)}`);
 		}
 		if (weekly !== undefined) {
 			const reset = resetText(weekly);
-			parts.push(`${label("wk")} ${share(Number(weekly.percentage) || 0)}${reset === "" ? "" : label(`→${reset}`)}`);
+			parts.push(`${label("wk")} ${share(Number(weekly.percentage) || 0)}${stale}${reset === "" ? "" : label(`→${reset}`)}`);
 		}
 		if (typeof quota.level === "string" && quota.level !== "") parts.push(label(quota.level));
 	}
