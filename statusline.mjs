@@ -45,6 +45,8 @@ const red = (text) => (useColor ? `\u001b[1;91m${text}\u001b[0m` : text);
  * muted grey. Bold + bright variant (96) reads as cyan even there.
  */
 const cyan = (text) => (useColor ? `\u001b[1;96m${text}\u001b[0m` : text);
+/** The workspace folder: bright blue, quieter than the branch's cyan. */
+const blue = (text) => (useColor ? `\u001b[1;94m${text}\u001b[0m` : text);
 
 /** Token counts per 1M for the routes this machine actually serves, USD. */
 const PRICES = {
@@ -352,6 +354,10 @@ function usageLine(stdinJson, config, quota) {
 	const branchDir = typeof stdinJson?.workspace?.current_dir === "string" && stdinJson.workspace.current_dir !== ""
 		? stdinJson.workspace.current_dir
 		: typeof stdinJson?.cwd === "string" && stdinJson.cwd !== "" ? stdinJson.cwd : process.cwd();
+	// The folder the session works in: the last path segment, which is what a
+	// person calls "the project". A bare root keeps its slash.
+	const folder = branchDir === "/" ? "/" : branchDir.slice(branchDir.lastIndexOf("/") + 1);
+	if (folder !== "") parts.push(blue(folder));
 	const branch = gitBranch(branchDir);
 	if (branch !== "") parts.push(cyan(`git:${branch}`));
 	return parts.join("  ");
