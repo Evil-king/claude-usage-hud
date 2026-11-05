@@ -54,7 +54,12 @@ const PRICES = {
 	"glm-5.3-flash": { input: 0.15, output: 0.5, cacheRead: 0.03, cacheWrite: 0 },
 	"glm-5.3-highspeed": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 	"deepseek-flash": { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0.15 },
-	"deepseek-chat": { input: 0.27, output: 1.1, cacheRead: 0.07, cacheWrite: 0.27 }
+	"deepseek-chat": { input: 0.27, output: 1.1, cacheRead: 0.07, cacheWrite: 0.27 },
+	// LongCat (Meituan): $0.30 / $1.20 / $0.006 per 1M, one list for every
+	// current model; the vendor publishes no cache-write rate.
+	"longcat-2.5": { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
+	"longcat-2.5-preview": { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
+	"longcat-2.0": { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 }
 };
 
 /** Context window per route family, tokens; a routed model defaults to 1M. */
@@ -63,7 +68,10 @@ const CONTEXT_WINDOWS = {
 	"glm-5.3-flash": 1e6,
 	"glm-5.3-highspeed": 1e6,
 	"deepseek-flash": 1e6,
-	"deepseek-chat": 1e6
+	"deepseek-chat": 1e6,
+	"longcat-2.5": 1e6,
+	"longcat-2.5-preview": 1e6,
+	"longcat-2.0": 1e6
 };
 
 /** The window one model id carries: exact table, then family, then 200k. */
@@ -183,7 +191,7 @@ function sumTranscript(path) {
 		if (input + output + cacheRead + cacheWrite === 0) continue;
 		tokens += input + output + cacheRead + cacheWrite;
 		const model = typeof message.model === "string" ? message.model : "";
-		const price = PRICES[model];
+		const price = PRICES[model] ?? PRICES[model.toLowerCase()];
 		if (price !== undefined) {
 			cost += (input * price.input + output * price.output + cacheRead * price.cacheRead + cacheWrite * price.cacheWrite) / 1e6;
 		}

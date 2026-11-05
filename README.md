@@ -72,6 +72,7 @@ cp config.example.json ~/.claude/usage-hud.json    # 填 glmAuthorization
 - `glm-5.3`：输入 1.4 / 输出 4.4 / 缓存读 0.26
 - `glm-5.3-flash`：0.15 / 0.5 / 0.03
 - `deepseek-flash`：0.15 / 0.6 / 0.003
+- `longcat-2.5` / `longcat-2.5-preview` / `longcat-2.0`：0.30 / 1.20 / 缓存读 0.006（1M 上下文）
 
 未知模型只统计 token、不估算费用。加新模型改 `statusline.mjs` 顶部的 `PRICES`。
 
